@@ -18,7 +18,7 @@ class StartScreen:
     COLOR_BLACK       = (  0,   0,   0)
     COLOR_SHADOW      = ( 20,  14,   8)
 
-    MENU_ITEMS = ['DESCEND', 'CONTROLS', 'EXIT']
+    MENU_ITEMS = ['DESCEND', 'EXIT']
 
     def __init__(self, display_surface: pygame.Surface):
         self.surface = display_surface
@@ -174,7 +174,7 @@ class StartScreen:
         return None
 
     def _confirm(self) -> str:
-        return ['play', 'controls', 'exit'][self.selected]
+        return ['play', 'exit'][self.selected]
 
     # ------------------------------------------------------------------ #
 
