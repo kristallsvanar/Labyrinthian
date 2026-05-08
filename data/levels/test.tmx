@@ -3,10 +3,9 @@
  <properties>
   <property name="20" type="int" value="20"/>
  </properties>
- <tileset firstgid="1" source="C:/Users/Matiff/Tilesetv3.tsx"/>
- <tileset firstgid="885" source="tsx/Player.tsx"/>
+ <tileset firstgid="1" source="Tilesetv3.tsx"/>
+ <tileset firstgid="885" source="Player.tsx"/>
  <tileset firstgid="888" source="Player.tsx"/>
- <tileset firstgid="889" source="../../../GAME ASSETS/Map/tmx/Traps.tsx"/>
  <tileset firstgid="1159" source="Fire.tsx"/>
  <tileset firstgid="1160" source="Saw.tsx"/>
  <tileset firstgid="1161" source="Enemies.tsx"/>

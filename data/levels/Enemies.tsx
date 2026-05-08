@@ -2,6 +2,6 @@
 <tileset version="1.10" tiledversion="1.12.1" name="Enemies" tilewidth="48" tileheight="48" tilecount="1" columns="0">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
-  <image source="../../../GAME ASSETS/Bandits/Bandits/Sprites/Light Bandit/Idle/LightBandit_Idle_0.png" width="48" height="48"/>
+  <image source="../../graphics/Enemy/Bandit/Idle/0.png" width="48" height="48"/>
  </tile>
 </tileset>
