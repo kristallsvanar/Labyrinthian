@@ -4,7 +4,7 @@
   <property name="underground_y" type="int" value="400"/>
  </properties>
  <tileset firstgid="1" source="tsx/Player.tsx"/>
- <tileset firstgid="4" source="C:/Users/Matiff/Tilesetv3.tsx"/>
+ <tileset firstgid="4" source="Tilesetv3.tsx"/>
  <tileset firstgid="888" source="Saw.tsx"/>
  <tileset firstgid="889" source="Enemies.tsx"/>
  <tileset firstgid="890" source="Wizard.tsx"/>
