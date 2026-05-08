@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tileset version="1.10" tiledversion="1.12.1" name="Wizard" tilewidth="140" tileheight="140" tilecount="1" columns="0">
+ <grid orientation="orthogonal" width="1" height="1"/>
+ <tile id="0">
+  <image source="../../graphics/Enemy/Wizard/Idle/0.png" width="140" height="140"/>
+ </tile>
+</tileset>
