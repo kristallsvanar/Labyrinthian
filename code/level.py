@@ -11,13 +11,14 @@ from dialogue_data import LEVEL_NPC_MAP
 from buff_menu import BuffMenu
 from companion import Companion
 from boss import Boss
-from miniboss import MiniBoss, HandPortal
+
 
 
 class Level:
     def __init__(self, tmx_map, level_frames, data, bg_layers, level_name):
         self.display_surface = pygame.display.get_surface()
         self.data = data
+        self.boss = None
 
         #level data
         self.level_width = tmx_map.width * TILE_SIZE
@@ -45,9 +46,7 @@ class Level:
         self.Worm_sprites = pygame.sprite.Group()
         self.Zombie_sprites = pygame.sprite.Group()
         self.Fireball_frames = level_frames['Fireball']
-        self.MiniBoss_sprites = pygame.sprite.Group()
         self.HandPortal_sprites = pygame.sprite.Group()
-        self.miniboss = None
         self.Boss_sprites = pygame.sprite.Group()
         self.boss = None
         self._frames = None
@@ -66,10 +65,13 @@ class Level:
         
         self.interacting = False
         self.buff_given = False
+        self.level_complete = False
         
         
         self._level_frames = level_frames
-        self.companion = None      
+        self.companion = None
+        self.companion_cooldown = 0
+        self.level_end_rects = []        
         self.setup(tmx_map, level_frames, self.current_level_name)
         
         
@@ -98,7 +100,7 @@ class Level:
         
     def setup(self, tmx_map, level_frames, level_name=''):
         #tiles
-        for layer in ['Terrain', 'Platforms', 'wallpaper', 'background', 'fire light', 'Spike', 'Spike Inverted','Props', 'Water' ]:
+        for layer in ['Terrain', 'Platforms', 'wallpaper', 'background', 'fire light', 'Spike', 'Spike Inverted','Props', 'Water', 'Door', 'stairs' ]:
             tile_layer = self.get_layer(tmx_map, layer)
             if not hasattr(tile_layer, 'tiles'):
                 continue
@@ -115,13 +117,14 @@ class Level:
                     case 'Spike Inverted' : z = Z_LAYERS['bg details']
                     case 'Props' : z = Z_LAYERS['bg']
                     case 'Water' : z = Z_LAYERS['water']
+                    case 'Door' : z = Z_LAYERS['bg details']
+                    case 'stairs' : z = Z_LAYERS['bg details']
                     case _: z = Z_LAYERS['main']
                     
                 
             
                 Sprite((x * TILE_SIZE, y * TILE_SIZE), surf, groups, z)
             
-        #Objects(Player)
         for obj in self.get_layer(tmx_map, 'Objects'):
             if obj.name == 'Player':
                 self.player = Player(
@@ -131,6 +134,7 @@ class Level:
                     semi_collision_sprites = self.semi_collision_sprites,
                     frames = level_frames['player'],
                     data = self.data)
+                self.spawn_pos = self.player.hitbox_rect.midbottom
             elif obj.name == 'NPC':
                 npc_name = LEVEL_NPC_MAP.get(self.current_level_name, 'The Crowned Hollow')
                 npc_frame_dict = level_frames['NPC'].get(npc_name, {})
@@ -140,23 +144,41 @@ class Level:
                         raw_frames = frames
                         break
 
-                
-                if not raw_frames: 
+                if not raw_frames:
                     print(f"[WARNING] No frames for NPC: {npc_name}, skipping.")
                     continue
 
-                # Scale based on the rectangle size you drew in Tiled
                 original = raw_frames[0]
+                if npc_name == 'The Desperate Sovereign':
+                    scaled_frames = raw_frames
+                else:
+                    scale = obj.height / original.get_height()
+                    scaled_frames = [
+                        pygame.transform.scale(f, (int(f.get_width() * scale), int(f.get_height() * scale)))
+                        for f in raw_frames
+                    ]
                 scale = obj.height / original.get_height()
                 scaled_frames = [
                     pygame.transform.scale(f, (int(f.get_width() * scale), int(f.get_height() * scale)))
                     for f in raw_frames
                 ]
-
                 NPC(
                     (obj.x, obj.y), scaled_frames,
                     (self.all_sprites, self.NPC_sprites),
                     self.player, npc_name, self.current_level_name, self.data
+                )
+            elif obj.name == 'LevelEnd':
+                portal_frames = level_frames['Portal']
+                scaled_portal = [
+                    pygame.transform.scale(f, (int(obj.width), int(obj.height)))
+                    for f in portal_frames
+                ]
+                AnimatedSprite(
+                    (obj.x, obj.y), scaled_portal,
+                    self.all_sprites, Z_LAYERS['bg details']
+                )
+                self.level_end_rects.append(
+                    pygame.FRect(obj.x, obj.y, obj.width, obj.height)
                 )
             else:
                 if obj.name == 'Saw':
@@ -281,36 +303,6 @@ class Level:
                     player=self.player,
                     create_grim_projectile=self.create_grim_projectile)
                 
-            if obj.name == 'MiniBoss':
-                original_frame = list(level_frames['MiniBoss'].values())[0][0]
-                scale = obj.height / original_frame.get_height()
-                scaled_frames = {
-                    state: [
-                        pygame.transform.scale(
-                            f, (int(f.get_width() * scale), int(f.get_height() * scale))
-                        )
-                        for f in frame_list
-                    ]
-                    for state, frame_list in level_frames['MiniBoss'].items()
-                }
-                # Scale the HandPortal frames by the same factor
-                scaled_portal_frames = [
-                    pygame.transform.scale(
-                        f, (int(f.get_width() * scale), int(f.get_height() * scale))
-                    )
-                    for f in level_frames['HandPortal']
-                ]
-                self._scaled_portal_frames = scaled_portal_frames  # store for the callback
-                self.miniboss = MiniBoss(
-                    pos=(obj.x, obj.y),
-                    frames=scaled_frames,
-                    groups=(self.all_sprites, self.MiniBoss_sprites),
-                    collision_sprites=self.collision_sprites,
-                    semi_collision_sprites=self.semi_collision_sprites,
-                    player=self.player,
-                    create_portal=self.create_portal,
-                )
-                
             if obj.name == 'Skeleton':
                 original_frame = list(level_frames['Skeleton'].values())[0][0]
                 scale = obj.height / original_frame.get_height()
@@ -337,9 +329,10 @@ class Level:
                 self.buff_menu.handle_event(event)
                 return
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r and self.data.has_companion:
-                        if self.player.on_surface['floor']:  # only on ground
+                if event.key == pygame.K_r and self.data.has_companion: 
+                        if self.player.on_surface['floor'] and self.companion_cooldown <= 0:
                             self._spawn_companion()
+                            self.companion_cooldown = 10
                 if event.key == pygame.K_e:
                     if not self.interacting:
                         for npc in self.NPC_sprites:
@@ -414,14 +407,6 @@ class Level:
                 scaled_frames, direction, 160,
                 self.collision_sprites, self.player, enemy_sprites, damage=35)
         
-    def create_portal(self, pos):
-        HandPortal(
-            pos=pos,
-            frames=self._scaled_portal_frames,
-            groups=(self.all_sprites, self.HandPortal_sprites),
-            player=self.player,
-        )    
-            
     def parry_collision(self):
         for target in self.Projectile_sprites:
             facing_target = self.player.hitbox_rect.centerx < target.rect.centerx and self.player.facing_right or \
@@ -458,38 +443,16 @@ class Level:
                 if self.player.attack_hitbox.colliderect(enemy.hitbox_rect):
                     enemy.get_damage(damage)
                     enemy.check_death()
-                    if self.data.lifesteal_percent > 0:
-                        heal = max(1, int(damage * self.data.lifesteal_percent / 100))
-                        print(f'lifesteal: dmg={damage}, pct={self.data.lifesteal_percent}, heal={heal}, hp={self.data.health}')
-                        self.data.health = min(self.data.health + heal, self.data.max_health)
-                        
+
         # Player sword hits boss
         if self.player.attack_hitbox:
             damage = self.player.attack_damage.get(self.player.state, 15)
             for boss in self.Boss_sprites:
                 if self.player.attack_hitbox.colliderect(boss.hitbox_rect):
                     boss.get_damage(damage)
-                    if self.data.lifesteal_percent > 0:
-                        heal = max(1, int(damage * self.data.lifesteal_percent / 100))
-                        self.data.health = min(self.data.health + heal, self.data.max_health)
-                # Player sword hits miniboss
-        if self.player.attack_hitbox:
-            damage = self.player.attack_damage.get(self.player.state, 15)
-            for mb in self.MiniBoss_sprites:
-                if self.player.attack_hitbox.colliderect(mb.hitbox_rect):
-                    mb.get_damage(damage)
-                    if self.data.lifesteal_percent > 0:
-                        heal = max(1, int(damage * self.data.lifesteal_percent / 100))
-                        self.data.health = min(self.data.health + heal, self.data.max_health)
 
-        # Miniboss melee hits player
-        for mb in self.MiniBoss_sprites:
-            if (mb.state == 'Attack'
-                    and mb.attack_hitbox
-                    and not mb.has_dealt_damage
-                    and mb.attack_hitbox.colliderect(self.player.hitbox_rect)):
-                self.player.get_damage(mb.MELEE_DAMAGE)
-                mb.has_dealt_damage = True
+
+
 
 # Boss hits player
         for boss in self.Boss_sprites:
@@ -543,7 +506,10 @@ class Level:
             
         # bottom border(how far you fall before you die lol)
         if self.player.hitbox_rect.bottom > self.level_bottom:
-            print('die lol')
+            self.player.hitbox_rect.midbottom = self.spawn_pos
+            self.player.rect.midbottom = self.spawn_pos
+            self.player.direction.y = 0
+            self.player.get_damage(20)
             
     def draw_background(self):
         camera_offset = self.all_sprites.offset.x
@@ -564,17 +530,23 @@ class Level:
                 
                 
     def run(self, dt, events):
-        if self.boss and not self.boss.dead:
-            self.boss.draw_hp_bar(self.display_surface)
+        
         for enemy in self.Samurai_sprites:
             print(enemy.state, int(enemy.frame_index), enemy.attack_hitbox)
         keys = pygame.key.get_pressed()
         if keys[pygame.K_TAB]:
             dt *= 0.1
         self.handle_npc_interaction(events)
+        if not self.level_complete:
+            for rect in self.level_end_rects:
+                if rect.colliderect(self.player.hitbox_rect):
+                    self.level_complete = True
+                    break
+        if self.companion_cooldown > 0:
+            self.companion_cooldown -= dt
         self.draw_background()
         self.all_sprites.update(dt)
-        self.all_sprites.draw(self.player.hitbox_rect.midbottom, dt)
+        self.all_sprites.draw(self.player.hitbox_rect.midbottom, dt, boss = self.boss)
         self.check_constraint()
         self.parry_collision()
         self.hit_collision()
@@ -583,6 +555,8 @@ class Level:
         for sprite in self.collision_sprites:
             if hasattr(sprite, 'moving'):
                 sprite.check_crush(self.player)
+        if self.boss and not self.boss.dead:
+            self.boss.draw_hp_bar(self.display_surface)
         if self.debug:                        
                     offset = self.all_sprites.offset
 
@@ -680,23 +654,15 @@ class Level:
                         if boss.attack_hitbox:
                             pygame.draw.rect(self.display_surface, 'orange',
                                 boss.attack_hitbox.move(offset), 2)
-                                        # MiniBoss debug
-                    for mb in self.MiniBoss_sprites:
-                        pygame.draw.rect(self.display_surface, 'cyan',
-                                mb.hitbox_rect.move(offset), 2)
+                    if self.companion and self.companion.alive():
                         pygame.draw.rect(self.display_surface, 'white',
-                                mb.rect.move(offset), 2)
-                        if mb.attack_hitbox:
-                            pygame.draw.rect(self.display_surface, 'orange',
-                                mb.attack_hitbox.move(offset), 2)
-
-                    # HandPortal debug
-                    for portal in self.HandPortal_sprites:
-                        pygame.draw.rect(self.display_surface, 'purple',
-                                portal.rect.move(offset), 2)
-                        if portal.attack_hitbox:
-                            pygame.draw.rect(self.display_surface, 'magenta',
-                                portal.attack_hitbox.move(offset), 2)
+                            self.companion.rect.move(offset), 2)
+                        pygame.draw.rect(self.display_surface, 'lime',
+                            self.companion.hitbox_rect.move(offset), 2)
+                        if self.companion.attack_hitbox:
+                            pygame.draw.rect(self.display_surface, 'cyan',
+                                self.companion.attack_hitbox.move(offset), 2)
+                        
                         
             
         

@@ -1,30 +1,20 @@
 import pygame
 from os.path import join
 
-# ---------------------------------------------------------------------------
-# StatBar  –  A single HP or MP bar drawn with 9-slice scaling.
-#
-# The frame image (2172×724 px) has three zones used for 9-slicing:
-#   [left cap] | [stretchable middle] | [right cap]
-#
-# When max_stat grows above base_max, only the middle zone stretches, so
-# the decorative end-caps stay sharp and undistorted.
-# ---------------------------------------------------------------------------
 
-# ── Original image measurements (pixels, 2172×724) ──────────────────────────
+
 _ORIG_W, _ORIG_H = 2172, 724
 
-# Rows that contain actual art (rest is empty black padding)
-_CONTENT_ROW_START = 207
-_CONTENT_ROW_END   = 479          # exclusive
 
-# Where the dark fill region lives inside the original image
+_CONTENT_ROW_START = 207
+_CONTENT_ROW_END   = 479        
+
+
 _HP_FILL = dict(left=320, right=2010, top=325, bottom=385)
 _MP_FILL = dict(left=330, right=2010, top=330, bottom=382)
 
-# 9-slice split points (same for both bars, in original pixels)
-_LEFT_CAP_W  = 320   # width of the left diamond end-cap
-_RIGHT_CAP_X = 2010  # x where the right end-cap begins
+_LEFT_CAP_W  = 320  
+_RIGHT_CAP_X = 2010  
 
 
 class StatBar:
@@ -52,7 +42,7 @@ class StatBar:
         self.base_max      = base_max
         self.base_width    = display_width
 
-        # Crop the original image to remove blank padding rows.
+       
         crop_rect = pygame.Rect(
             0, _CONTENT_ROW_START,
             _ORIG_W, _CONTENT_ROW_END - _CONTENT_ROW_START
@@ -71,7 +61,7 @@ class StatBar:
             bottom= fill_data['bottom'] - crop_offset,
         )
 
-        # Cache: max_stat → (scaled Surface, fill_rect relative to pos)
+  
         self._cache: dict[int, tuple[pygame.Surface, pygame.Rect]] = {}
 
     # ------------------------------------------------------------------
@@ -86,7 +76,7 @@ class StatBar:
         orig_ch = self._cropped.get_height()  # cropped height
         disp_h  = int(orig_ch * self._sf)
 
-        # ── 9-slice: carve the cropped surf into three vertical strips ──
+     
         right_cap_orig_w = orig_cw - _RIGHT_CAP_X   # 162 px
         mid_orig_w       = _RIGHT_CAP_X - _LEFT_CAP_W
 
@@ -143,9 +133,7 @@ class StatBar:
         surface.blit(frame, (x, y))
 
 
-# ---------------------------------------------------------------------------
-# HUD  –  owns both bars; call hud.draw(surface) once per frame.
-# ---------------------------------------------------------------------------
+
 
 class HUD:
     HP_COLOR = (210,  50,  50)    # warm red
@@ -165,7 +153,7 @@ class HUD:
         """
         self.data = data
 
-        # Temporary bar to measure display height
+      
         _tmp = StatBar(hp_surf, self.HP_COLOR, _HP_FILL,
                        (0, 0), display_width=display_width)
         _, fill_rect = _tmp._build(100)

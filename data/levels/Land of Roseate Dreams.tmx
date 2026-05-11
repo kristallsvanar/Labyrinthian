@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="43" height="104" tilewidth="16" tileheight="16" infinite="0" nextlayerid="12" nextobjectid="77">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="43" height="104" tilewidth="16" tileheight="16" infinite="0" nextlayerid="12" nextobjectid="78">
  <tileset firstgid="1" source="AssetSheet_Pink.tsx"/>
  <tileset firstgid="136" source="Player.tsx"/>
  <tileset firstgid="137" source="Structurs.tsx"/>
@@ -704,7 +704,7 @@
  <objectgroup id="2" name="Objects">
   <object id="1" name="Player" gid="136" x="-113.106" y="1600.95" width="288" height="128"/>
   <object id="36" name="StrucL" type=" " gid="141" x="205.667" y="272" width="84" height="160"/>
-  <object id="37" name="StrucS" gid="144" x="274" y="272" width="172" height="101"/>
+  <object id="37" name="StrucS" gid="144" x="273.455" y="272.182" width="172" height="101"/>
   <object id="38" name="StrucL" type=" " gid="2147483789" x="431.292" y="272" width="84" height="160"/>
   <object id="39" name="Lamp" gid="145" x="140" y="272" width="9" height="27"/>
   <object id="40" name="Lamp" gid="145" x="561" y="272" width="9" height="27"/>
@@ -722,6 +722,7 @@
   <object id="53" name="Lamp" gid="145" x="145.833" y="1520.17" width="9" height="27"/>
   <object id="54" name="Lamp" gid="145" x="6.5" y="1600.23" width="9" height="27"/>
   <object id="76" name="NPC" gid="150" x="108.909" y="1361.09" width="288" height="128"/>
+  <object id="77" name="LevelEnd" x="330.261" y="198.409" width="53.25" height="73.5"/>
  </objectgroup>
  <objectgroup id="10" name="Enemies">
   <object id="56" name="Samurai" gid="147" x="90.5968" y="1520.15" width="184" height="90.1818"/>

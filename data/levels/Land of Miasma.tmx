@@ -86,7 +86,7 @@
 </data>
  </layer>
  <objectgroup id="2" name="Objects">
-  <object id="1" name="Player" gid="61" x="2618.84" y="1056.27" width="288" height="128"/>
+  <object id="1" name="Player" gid="61" x="-90.8267" y="1072.93" width="288" height="128"/>
   <object id="11" name="NPC" gid="66" x="1557.21" y="918.773" width="128" height="64"/>
  </objectgroup>
  <objectgroup id="3" name="Enemies">

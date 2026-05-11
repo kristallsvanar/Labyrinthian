@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="59" height="43" tilewidth="16" tileheight="16" infinite="0" nextlayerid="24" nextobjectid="40">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="59" height="43" tilewidth="16" tileheight="16" infinite="0" nextlayerid="24" nextobjectid="41">
  <properties>
   <property name="20" type="int" value="20"/>
  </properties>
@@ -455,9 +455,10 @@
   <object id="29" name="Fire" gid="1159" x="837.455" y="611.455" width="21" height="27"/>
   <object id="30" name="Fire" gid="1159" x="837.818" y="435.636" width="21" height="27"/>
   <object id="31" name="Fire" gid="1159" x="838.364" y="291.636" width="21" height="27"/>
-  <object id="32" name="Player" gid="888" x="461.375" y="681.583" width="288" height="128"/>
+  <object id="32" name="Player" gid="888" x="7.6781" y="160.365" width="288" height="128"/>
   <object id="34" name="Saw" gid="1160" x="624.667" y="638.333" width="96" height="63"/>
   <object id="39" name="NPC" gid="1164" x="189.875" y="161.125" width="128" height="64"/>
+  <object id="40" name="LevelEnd" x="876.466" y="86.4773" width="53.25" height="73.5"/>
  </objectgroup>
  <objectgroup id="23" name="Data"/>
  <objectgroup id="22" name="Enemies">

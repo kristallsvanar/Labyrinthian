@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="208" height="32" tilewidth="16" tileheight="16" infinite="0" nextlayerid="14" nextobjectid="24">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="208" height="32" tilewidth="16" tileheight="16" infinite="0" nextlayerid="14" nextobjectid="25">
  <tileset firstgid="1" source="../../../GAME ASSETS/forest-nature-fantasy-tileset-free/Fantasy Swamp Forest/Free/BG_1.tsx"/>
  <tileset firstgid="3001" source="../../../GAME ASSETS/forest-nature-fantasy-tileset-free/Fantasy Swamp Forest/Free/Terrain_and_Props.tsx"/>
  <tileset firstgid="3681" source="../../../GAME ASSETS/forest-nature-fantasy-tileset-free/Fantasy Swamp Forest/Free/BG_2.tsx"/>
@@ -119,6 +119,7 @@
  <objectgroup id="11" name="Objects">
   <object id="2" name="Player" gid="10590" x="22.6667" y="494.667" width="288" height="128"/>
   <object id="23" name="NPC" gid="10596" x="140" y="497.636" width="288" height="128"/>
+  <object id="24" name="LevelEnd" x="2909.71" y="5.16667" width="53.25" height="73.5"/>
  </objectgroup>
  <layer id="5" name="Props" width="208" height="32">
   <data encoding="csv">

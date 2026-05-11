@@ -184,6 +184,7 @@ class Player(pygame.sprite.Sprite):
     def ranged_attack(self):
         cost = self.mana_costs['3_atk']
         if not self.timers['attack block'].active and self.data.mana >= cost:
+            self.data.mana -= cost
             self.attacking = True
             self.ranged = True
             self.frame_index = 0
@@ -234,7 +235,7 @@ class Player(pygame.sprite.Sprite):
             self.speed = self.roll_speed
         elif self.rolling:
             self.rolling = False
-            self.speed = 200
+            self.speed = 200 * self.data.speed_multiplier
             self.timers['roll cooldown'].activate()
     
     def check_contact(self):
@@ -313,7 +314,7 @@ class Player(pygame.sprite.Sprite):
             self.image = self.frames['defend'][4]
             self.image = self.image if self.facing_right else pygame.transform.flip(self.image, True, False)
             return
-        if self.state in ('1_atk', '2_atk', '3_atk') and self.frame_index >= len(self.frames[self.state]):
+        if self.state in ('1_atk', '2_atk', '3_atk', 'air_atk') and self.frame_index >= len(self.frames[self.state]):
             self.attacking = False
             self.ranged = False
             self.state = 'idle'

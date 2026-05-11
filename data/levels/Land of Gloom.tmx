@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="104" height="54" tilewidth="16" tileheight="16" infinite="0" nextlayerid="10" nextobjectid="50">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="104" height="54" tilewidth="16" tileheight="16" infinite="0" nextlayerid="10" nextobjectid="51">
  <properties>
   <property name="underground_y" type="int" value="400"/>
  </properties>
@@ -254,7 +254,6 @@
   <object id="45" name="Wizard" gid="890" x="873.25" y="180.25" width="140" height="140"/>
   <object id="46" name="Wizard" gid="890" x="1572.67" y="185.333" width="140" height="140"/>
   <object id="47" name="Wizard" gid="890" x="1337" y="185" width="140" height="140"/>
-  <object id="49" name="MiniBoss" gid="896" x="432.931" y="832.019" width="201.864" height="133.841"/>
  </objectgroup>
  <layer id="5" name="Spike" width="104" height="54">
   <data encoding="csv">
@@ -378,6 +377,7 @@
   <object id="30" gid="229" x="1280.25" y="783.75" width="16" height="16"/>
   <object id="33" name="Player" gid="891" x="-85.1667" y="384" width="288" height="128"/>
   <object id="48" name="NPC" gid="895" x="268.25" y="65.25" width="288" height="128"/>
+  <object id="50" name="LevelEnd" x="405" y="751.5" width="53.25" height="73.5"/>
  </objectgroup>
  <objectgroup id="9" name="Data">
   <object id="42" x="24" y="20.5" width="26" height="20">

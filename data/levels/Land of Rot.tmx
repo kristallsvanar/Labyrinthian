@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="90" height="28" tilewidth="16" tileheight="16" infinite="0" nextlayerid="9" nextobjectid="14">
+<map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="90" height="28" tilewidth="16" tileheight="16" infinite="0" nextlayerid="9" nextobjectid="15">
  <tileset firstgid="1" source="no man's land v1.0 transparent.tsx"/>
  <tileset firstgid="92" source="Player.tsx"/>
  <tileset firstgid="93" source="Dungeon Tile Set.tsx"/>
@@ -148,6 +148,7 @@
  <objectgroup id="2" name="Objects">
   <object id="1" name="Player" gid="92" x="-115.455" y="385.091" width="288" height="128"/>
   <object id="13" name="NPC" gid="365" x="-7.75" y="181.25" width="137" height="96"/>
+  <object id="14" name="LevelEnd" x="1291.37" y="97.25" width="53.25" height="73.5"/>
  </objectgroup>
  <layer id="4" name="background" width="90" height="28">
   <data encoding="csv">

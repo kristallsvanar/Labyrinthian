@@ -1,6 +1,7 @@
 from settings import *
 from timer import Timer
 from math import sin
+from os.path import join
 
 # ---------------------------------------------------------------------------
 # Helper: normalise a vector, returns (0,0) if length is zero
@@ -33,7 +34,11 @@ class Boss(pygame.sprite.Sprite):
     DETECT_RANGE          = 500   # aggro radius
     BREATH_RANGE          = 90    # close enough for breath_attack -> ground_lunge
     LUNGE_RANGE           = 550   # distance to trigger lunge_ready
-    FLY_LUNGE_DISTANCE = 700  # px to travel during lunge_attack in phase 2
+    FLY_LUNGE_DISTANCE    = 1000   # px to travel during lunge_attack in phase 2
+
+    # --- out-of-range recovery ---------------------------------------------
+    HP_REGEN_RATE         = 30    # HP per second while player is out of range
+    AGGRO_LOSS_DELAY      = 2.0   # seconds before aggro drops
 
     # 'rect'                          → use hitbox_rect directly (impact states)
     # (fwd, fy, w, h, {frames})       → uniform box, active on listed frames
@@ -67,16 +72,16 @@ class Boss(pygame.sprite.Sprite):
             11: (80, 50, 180, 100),
         },
         'diagonal_lunge_flight_impact': {
-            0: ('rect', 250, 0),
-            1: ('rect', 270, 0),
-            2: ('rect',  310, 0),
-            3: ('rect', 300, 0),
-            4: ('rect', 170, 0),
+            0: ('rect', 250, -120,80),
+            1: ('rect', 270, -120,80),
+            2: ('rect',  310, -120,80),
+            3: ('rect', 300, -120,80),
+            4: ('rect', 170, -120,80),
         },
     }
-    
+
     INTERRUPTIBLE_STATES = frozenset({
-    'idle', 'walk', 'fly_idle', 'turn', 'fly_turn'
+        'idle', 'walk', 'fly_idle', 'turn', 'fly_turn'
     })
 
     # -----------------------------------------------------------------------
@@ -102,6 +107,8 @@ class Boss(pygame.sprite.Sprite):
         self.collision_sprites    = collision_sprites
         self.semi_collision_sprites = semi_collision_sprites
         self._rebuild_collision_rects()
+        self._boss_font = pygame.font.Font(join('..', 'data', 'fonts', 'IMFellDoublePica-Regular.ttf'), 15)
+        
 
         # --- movement -------------------------------------------------------
         self.facing_right        = False
@@ -109,8 +116,9 @@ class Boss(pygame.sprite.Sprite):
         self.gravity             = 520
         self.on_floor            = False
         self._lunge_was_airborne = False
-        self._pre_turn_facing = False
-        self._lunge_start_x = 0
+        self._pre_turn_facing    = False
+        self._lunge_start_x      = 0
+        self._last_floor_y = None
 
         # --- phase / HP -----------------------------------------------------
         self.phase              = 1
@@ -124,6 +132,7 @@ class Boss(pygame.sprite.Sprite):
         self.diagonal_ascending = False
         self.dying              = False
         self.dead               = False
+        self.ever_detected = False
 
         # --- hitboxes -------------------------------------------------------
         self.attack_hitbox = None
@@ -131,6 +140,10 @@ class Boss(pygame.sprite.Sprite):
         # --- timers ---------------------------------------------------------
         self.hit_timer    = Timer(600)
         self.attack_timer = Timer(2500)
+
+        # --- out-of-range recovery ------------------------------------------
+        self._out_of_range_time = 0.0   # accumulator (seconds)
+        self._deaggro           = False  # True once delay has elapsed
 
     # =======================================================================
     # Internal helpers
@@ -154,8 +167,10 @@ class Boss(pygame.sprite.Sprite):
                 self.attack_hitbox = None
                 return
             if isinstance(entry, tuple) and entry[0] == 'rect':
-                _, ix, iy = entry
+                _, ix, iy = entry[:3]
+                offset_y = entry[3] if len(entry) > 3 else 0
                 self.attack_hitbox = pygame.FRect(self.hitbox_rect).inflate(ix, iy)
+                self.attack_hitbox.y += offset_y
                 return
             fwd, fy, w, h = entry
 
@@ -163,7 +178,7 @@ class Boss(pygame.sprite.Sprite):
         cx = self.hitbox_rect.centerx + fwd * direction
         cy = self.hitbox_rect.centery + fy
         self.attack_hitbox = pygame.FRect(cx - w // 2, cy - h // 2, w, h)
-    
+
     def _rebuild_collision_rects(self):
         self.collision_rects = (
             [s.rect for s in self.collision_sprites] +
@@ -212,6 +227,57 @@ class Boss(pygame.sprite.Sprite):
         dx, _ = self._player_dx_dy()
         moving_right = self.velocity.x > 0
         return (moving_right and dx < 80) or (not moving_right and dx > -80)
+
+    # =======================================================================
+    # Out-of-range: aggro loss & HP regen
+    # =======================================================================
+
+    def _player_in_boss_zone(self):
+        """Returns True if the player is inside the boss arena bounds."""
+        px = self.player.hitbox_rect.centerx
+        return 141 * 16 <= px <= 230 * 16
+    
+    def _handle_out_of_range(self, dt):
+        if self._player_in_boss_zone():
+            self.ever_detected = True
+            self._out_of_range_time = 0.0
+            self._deaggro           = False
+            return
+
+        # --- Abort any active lunge instantly; don't wait for the deaggro delay ---
+        UNSAFE_STATES = {
+            'ground_lunge', 'diagonal_lunge_flight', 'lunge_attack',
+            'lunge_ready',  'diagonal_ready',         'fly_scream',
+            'backwards_flight',
+        }
+        if self.state in UNSAFE_STATES:
+            self.lunge_active = False
+            self.velocity     = vector(0, 0)
+            self._enter_state('idle' if self.phase == 1 else 'fly_idle')
+            self._out_of_range_time = 0.0
+            self._deaggro           = False
+            return
+
+        self._out_of_range_time += dt
+        if self._out_of_range_time >= self.AGGRO_LOSS_DELAY:
+            self._deaggro = True
+        if not self._deaggro:
+            return
+
+        if self.phase == 1 and self.state not in ('idle', 'hit', 'death'):
+            self.lunge_active = False
+            self.velocity     = vector(0, 0)
+            self._enter_state('idle')
+        elif self.phase == 2 and self.state not in ('fly_idle', 'hit', 'ground_to_fly', 'death'):
+            self.lunge_active = False
+            self.velocity     = vector(0, 0)
+            self._enter_state('fly_idle')
+
+        regen = self.HP_REGEN_RATE * dt
+        if self.phase == 1:
+            self.phase1_hp = min(self.PHASE1_HP, self.phase1_hp + regen)
+        else:
+            self.phase2_hp = min(self.PHASE2_HP, self.phase2_hp + regen)
 
     # =======================================================================
     # Damage / death
@@ -331,41 +397,37 @@ class Boss(pygame.sprite.Sprite):
         'diagonal_ready', 'fly_hit',
     })
 
-    # NEW
     def _move_hover(self, dt):
         if self.phase != 2:
             return
         if self.state not in self.HOVERING_STATES:
             return
 
-        target_y = self.player.hitbox_rect.centery + self.HOVER_OFFSET_Y
-        diff_y   = target_y - self.hitbox_rect.centery
-        step_y   = min(abs(diff_y), self.HOVER_TRACK_SPEED * dt)
-        self.hitbox_rect.y += (1 if diff_y > 0 else -1) * step_y
-
         if self.state == 'backwards_flight':
             dx, _ = self._player_dx_dy()
             retreat = -1 if dx > 0 else 1
             self.hitbox_rect.x += retreat * self.HOVER_DRIFT_SPEED * dt
+        else:
+            target_y = self.player.hitbox_rect.centery + self.HOVER_OFFSET_Y
+            diff_y   = target_y - self.hitbox_rect.centery
+            step_y   = min(abs(diff_y), self.HOVER_TRACK_SPEED * dt)
+            self.hitbox_rect.y += (1 if diff_y > 0 else -1) * step_y
 
         # Push boss out of any terrain it has drifted into
         all_sprites = list(self.collision_sprites) + list(self.semi_collision_sprites)
         for sprite in all_sprites:
             if not self.hitbox_rect.colliderect(sprite.rect):
                 continue
-            # Push out whichever axis has less overlap
             overlap_x = min(self.hitbox_rect.right - sprite.rect.left,
                             sprite.rect.right - self.hitbox_rect.left)
             overlap_y = min(self.hitbox_rect.bottom - sprite.rect.top,
                             sprite.rect.bottom - self.hitbox_rect.top)
             if overlap_y < overlap_x:
-                # Push vertically — prefer upward
                 if self.hitbox_rect.centery < sprite.rect.centery:
                     self.hitbox_rect.bottom = sprite.rect.top
                 else:
                     self.hitbox_rect.top = sprite.rect.bottom
             else:
-                # Push horizontally
                 if self.hitbox_rect.centerx < sprite.rect.centerx:
                     self.hitbox_rect.right = sprite.rect.left
                 else:
@@ -391,7 +453,7 @@ class Boss(pygame.sprite.Sprite):
 
             if self._lunge_was_airborne:
                 if self.on_floor:
-                    self.velocity.x  *= 0.3   # carry a fraction of lunge speed into the impact
+                    self.velocity.x  *= 0.3
                     self.velocity.y   = 0
                     self.lunge_active = False
                     self._enter_state('ground_lunge_impact')
@@ -401,53 +463,37 @@ class Boss(pygame.sprite.Sprite):
                     self.lunge_active = False
                     self._enter_state('ground_lunge_impact')
 
-        
-        # NEW
         elif self.state == 'diagonal_lunge_flight':
             self.hitbox_rect.x += self.velocity.x * dt
             self.hitbox_rect.y += self.velocity.y * dt
 
-            # If player is airborne, just impact on any rect collision
-            player_grounded = self.player.on_surface['floor']
-            if not player_grounded:
-                if self.hitbox_rect.colliderect(self.player.hitbox_rect):
-                    self.velocity     = vector(0, 0)
+            player_floor_y = self.player.hitbox_rect.bottom
+            all_sprites = list(self.collision_sprites) + list(self.semi_collision_sprites)
+            hit_surface = False
+
+            for sprite in all_sprites:
+                if not self.hitbox_rect.colliderect(sprite.rect):
+                    continue
+                near_player_floor = abs(sprite.rect.top - player_floor_y) <= 32
+                if near_player_floor:
+                    self.hitbox_rect.bottom = sprite.rect.top
+                    self.velocity = vector(0, 0)
                     self.lunge_active = False
                     self._enter_state('diagonal_lunge_flight_impact')
-            else:
-                player_floor_y = self.player.hitbox_rect.bottom
-                all_sprites = list(self.collision_sprites) + list(self.semi_collision_sprites)
-                for sprite in all_sprites:
-                    if not self.hitbox_rect.colliderect(sprite.rect):
-                        continue
-                    near_player_floor = abs(sprite.rect.top - player_floor_y) <= 20
-                    if near_player_floor:
-                        self.hitbox_rect.bottom = sprite.rect.top
-                        self.velocity.y = 0
-                        dx, _ = self._player_dx_dy()
-                        if abs(dx) > 100:
-                            self.velocity.x = (1 if dx > 0 else -1) * self.WALK_SPEED * 2
-                        else:
-                            self.velocity     = vector(0, 0)
-                            self.lunge_active = False
-                            self._enter_state('diagonal_lunge_flight_impact')
-                        break
+                    hit_surface = True
+                    break
 
-                if (self.lunge_active and self.velocity.y == 0 and
-                        self.state == 'diagonal_lunge_flight'):
-                    dx, _ = self._player_dx_dy()
-                    if abs(dx) <= 20:
-                        self.velocity     = vector(0, 0)
-                        self.lunge_active = False
-                        self._enter_state('diagonal_lunge_flight_impact')
+            if not hit_surface and self.hitbox_rect.colliderect(self.player.hitbox_rect):
+                self.velocity = vector(0, 0)
+                self.lunge_active = False
+                self._enter_state('diagonal_lunge_flight_impact')
 
         elif self.state == 'ground_lunge_impact':
             self.hitbox_rect.x += self.velocity.x * dt
-            self.velocity.x *= max(0, 1 - 8 * dt)  # friction, bleeds speed to zero
+            self.velocity.x *= max(0, 1 - 8 * dt)
 
         elif self.state == 'lunge_attack':
             self.hitbox_rect.x += self.velocity.x * dt
-            # Phase 2: fixed distance, ignores terrain entirely
             if self.phase == 2:
                 travelled = abs(self.hitbox_rect.centerx - self._lunge_start_x)
                 if travelled >= self.FLY_LUNGE_DISTANCE:
@@ -487,7 +533,7 @@ class Boss(pygame.sprite.Sprite):
     def _resolve_floor(self):
         self.on_floor = False
         all_sprites   = (list(self.collision_sprites) +
-                         list(self.semi_collision_sprites))
+                        list(self.semi_collision_sprites))
         for sprite in all_sprites:
             if not self.hitbox_rect.colliderect(sprite.rect):
                 continue
@@ -496,6 +542,7 @@ class Boss(pygame.sprite.Sprite):
                 self.hitbox_rect.bottom = sprite.rect.top
                 self.velocity.y = 0
                 self.on_floor   = True
+                self._last_floor_y = self.hitbox_rect.bottom   # <-- add this
                 break
 
         probe = pygame.Rect(self.hitbox_rect.bottomleft,
@@ -535,24 +582,21 @@ class Boss(pygame.sprite.Sprite):
             player_lower  = self._player_is_lower()
 
             if player_higher:
-                # Diagonal lunge UP toward the player on a higher platform.
                 self.diagonal_ascending = True
                 self._face_player()
                 self._enter_state('diagonal_ready')
             elif player_lower:
-                # Diagonal lunge DOWN off the ledge toward the player below.
                 self.diagonal_ascending = False
                 self._face_player()
                 self._enter_state('diagonal_ready')
             else:
-                # Flat / arc ground lunge on the same floor.
                 self.diagonal_ascending = False
                 self.lunge_active       = True
                 self.velocity.x = (1 if self.facing_right else -1) * self.LUNGE_SPEED
                 if self._gap_exists_between():
                     self.velocity.y = self.LUNGE_ARC_Y
                 self._enter_state('ground_lunge')
-                
+
         elif s == 'fly_hit':
             if self.phase == 2:
                 self._enter_state('fly_idle')
@@ -599,7 +643,6 @@ class Boss(pygame.sprite.Sprite):
         elif s == 'fly_turn':
             self._enter_state('fly_idle')
 
-        # NEW
         elif s == 'fly_scream':
             self.lunge_active    = True
             self._lunge_start_x  = self.hitbox_rect.centerx
@@ -627,7 +670,6 @@ class Boss(pygame.sprite.Sprite):
 
         state_frames = self.frames[self.state]
 
-        # Doubled from original values (was 2.2 / 1.0 × ANIMATION_SPEED)
         if self.state in ('ground_lunge', 'lunge_attack',
                           'diagonal_lunge_flight', 'breath_attack'):
             speed = ANIMATION_SPEED * 3.0
@@ -688,19 +730,53 @@ class Boss(pygame.sprite.Sprite):
     # HP bar draw
     # =======================================================================
 
+        # --- name label above bar ---
     def draw_hp_bar(self, surface):
-        bar_w, bar_h = 300, 16
+        if not self.ever_detected:
+            return
+        bar_w, bar_h = 340, 18
         x = surface.get_width() // 2 - bar_w // 2
-        y = surface.get_height() - 48
+        y = surface.get_height() - 52
 
         max_hp = self.PHASE1_HP if self.phase == 1 else self.PHASE2_HP
         cur_hp = self.phase1_hp  if self.phase == 1 else self.phase2_hp
         ratio  = max(0, cur_hp / max_hp)
 
-        pygame.draw.rect(surface, (60, 10, 10),  (x, y, bar_w, bar_h))
-        pygame.draw.rect(surface, (200, 30, 30), (x, y, int(bar_w * ratio), bar_h))
-        pygame.draw.rect(surface, (255, 255, 255),(x, y, bar_w, bar_h), 2)
+        # --- name label above bar ---
+        name_surf = self._boss_font.render('The Lord of Miasma', False, (220, 200, 160))
+        name_x = surface.get_width() // 2 - name_surf.get_width() // 2
+        name_y = y - name_surf.get_height() - 5
+        surface.blit(name_surf, (name_x, name_y))
 
+        # --- decorative border/shadow ---
+        shadow_rect = pygame.Rect(x - 2, y - 2, bar_w + 4, bar_h + 4)
+        pygame.draw.rect(surface, (10, 5, 15), shadow_rect, border_radius=4)
+
+        # --- empty trough ---
+        pygame.draw.rect(surface, (40, 10, 10), (x, y, bar_w, bar_h), border_radius=3)
+
+        # --- fill with phase-aware color ---
+        if ratio > 0:
+            fill_w = int(bar_w * ratio)
+            fill_color = (180, 30, 30) if self.phase == 1 else (130, 20, 160)
+            pygame.draw.rect(surface, fill_color, (x, y, fill_w, bar_h), border_radius=3)
+
+            # subtle highlight stripe at top of fill
+            highlight_rect = pygame.Rect(x, y + 2, fill_w, bar_h // 4)
+            highlight_surf = pygame.Surface((fill_w, bar_h // 4), pygame.SRCALPHA)
+            highlight_surf.fill((255, 255, 255, 35))
+            surface.blit(highlight_surf, (x, y + 2))
+
+        # --- outer border ---
+        pygame.draw.rect(surface, (200, 170, 100), (x, y, bar_w, bar_h), 2, border_radius=3)
+
+        # --- phase indicator dots below bar ---
+        dot_y = y + bar_h + 5
+        for i, filled in enumerate([self.phase >= 1, self.phase >= 2]):
+            dot_x = surface.get_width() // 2 - 8 + i * 16
+            color = (200, 160, 60) if filled else (60, 40, 40)
+            pygame.draw.circle(surface, color, (dot_x, dot_y), 4)
+            pygame.draw.circle(surface, (200, 170, 100), (dot_x, dot_y), 4, 1)
     # =======================================================================
     # Main update
     # =======================================================================
@@ -714,6 +790,7 @@ class Boss(pygame.sprite.Sprite):
             return
 
         self._rebuild_collision_rects()
+        self._handle_out_of_range(dt)   # aggro loss & HP regen when player leaves arena
 
         if self.phase == 1:
             self._apply_gravity(dt)
@@ -727,6 +804,25 @@ class Boss(pygame.sprite.Sprite):
             self._move_hover(dt)
             self._move_lunge(dt)
 
+        # Arena horizontal bounds
+        prev_left  = self.hitbox_rect.left
+        prev_right = self.hitbox_rect.right
+        self.hitbox_rect.left  = max(141 * 16, self.hitbox_rect.left)
+        self.hitbox_rect.right = min(230 * 16, self.hitbox_rect.right)
+
+        # If a lunge drove the boss into the wall, end it cleanly
+        if self.lunge_active and self.state == 'ground_lunge':
+            if self.hitbox_rect.left != prev_left or self.hitbox_rect.right != prev_right:
+                self.velocity     = vector(0, 0)
+                self.lunge_active = False
+                self._enter_state('ground_lunge_impact')
+                # Vertical safety net: if boss fell off the map, snap back to last floor
+        if (self._last_floor_y is not None and
+                self.hitbox_rect.top > self._last_floor_y + 600):
+            self.hitbox_rect.bottom = self._last_floor_y
+            self.velocity.y  = 0
+            self.lunge_active = False
+            self._enter_state('idle' if self.phase == 1 else 'fly_idle')
         self.animate(dt)
         self.flicker()
 

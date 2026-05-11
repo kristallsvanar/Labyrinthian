@@ -10,6 +10,7 @@ from data import Data
 from debug import debug
 from hud import HUDBars
 from start_screen import StartScreen
+from pause_menu import PauseMenu
 
 def load_bg(path):
     surf = pygame.image.load(path).convert_alpha()
@@ -27,6 +28,7 @@ class Game:
         'Land of Rot':      5,
         'Land of Miasma':   0,
     }
+
     def __init__(self):
         pygame.init()
         self.display_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SCALED | pygame.FULLSCREEN)
@@ -37,6 +39,11 @@ class Game:
         self.data = Data()
         self.fullscreen = True
         self.hud = HUDBars()
+        self.game_complete    = False
+        self.return_to_title  = False
+
+        # Pause menu — shares the buff_border asset
+        self.pause_menu = PauseMenu(border_surf=self.level_frames['buff_border'])
 
         self.tmx_maps = {
             'test':           load_pygame(join('..', 'data', 'levels', 'test.tmx')),
@@ -95,9 +102,7 @@ class Game:
             'layer2': load_bg(join('..', 'graphics', 'Map', 'Land of Miasma', '2.png')),
             'layer3': load_bg(join('..', 'graphics', 'Map', 'Land of Miasma', '3.png')),
         }
-          }
-
-
+        }
 
         middle = random.sample(self.MIDDLE_POOL, 3)
         self.level_sequence = ['test'] + middle + ['Land of Miasma']
@@ -120,7 +125,7 @@ class Game:
             self.level_index += 1
             self.load_level(self.level_index)
         else:
-            print("Game complete!")  # ending cutscene
+            self.game_complete = True
             
     def respawn(self):
         self.data.deaths += 1
@@ -161,8 +166,7 @@ class Game:
             'Fireball': import_sub_folders('..', 'graphics', 'Enemy', 'Worm', 'Fireball'),
             'Zombie': import_sub_folders('..', 'graphics', 'Enemy', 'Zombie'),
             'Boss': import_sub_folders('..', 'graphics', 'Enemy', 'Boss'),
-            'MiniBoss': import_sub_folders('..', 'graphics', 'Enemy', 'MiniBoss1'),
-            'HandPortal': import_folder('..', 'graphics', 'Enemy', 'MiniBoss', 'Spell'),
+            'Portal': import_folder('..', 'graphics', 'Level', 'Portal'),
             'dialogue_border': pygame.image.load(join('..', 'graphics','ui', 'dialogue_border.png')).convert_alpha(),
             'buff_border':pygame.image.load(join('..', 'graphics', 'ui', 'buff_border.png')).convert_alpha(),
             
@@ -172,13 +176,8 @@ class Game:
                 'The Crowned Hollow':      import_sub_folders('..', 'graphics', 'NPCs', 'The Crowned Hollow'),
                 'The Eutrophized':         import_sub_folders('..', 'graphics', 'NPCs', 'The Eutrophized'),
             },
-                   
         }
-        
 
-
-        
-        
     def toggle_fullscreen(self):
         self.fullscreen = not self.fullscreen
         if self.fullscreen:
@@ -191,68 +190,101 @@ class Game:
             )    
         
     def run(self):
-        # get native resolution before switching to SCALED
+        # ── start screen at native resolution (no SCALED blur) ────────
         info = pygame.display.Info()
         native_w, native_h = info.current_w, info.current_h
-
-        # start screen at native res — no SCALED, no blur
         self.display_surface = pygame.display.set_mode(
             (native_w, native_h), pygame.FULLSCREEN
         )
-        start = StartScreen(self.display_surface)
+        start = StartScreen(self.display_surface, border_surf=self.level_frames['buff_border'])
         result = start.run(self.clock)
 
         if result == 'exit':
             pygame.quit()
             sys.exit()
 
-        # switch back to SCALED mode for the game
+        # ── switch to SCALED game mode ────────────────────────────────
         self.display_surface = pygame.display.set_mode(
             (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SCALED | pygame.FULLSCREEN
         )
+        self.game_complete   = False
+        self.return_to_title = False
+        self.pause_menu.hide()
+
         while True:
-            dt = self.clock.tick() / 1000
+            dt     = self.clock.tick() / 1000
             events = pygame.event.get()
+
             for event in events:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                if event.type == pygame.KEYDOWN:      
-                    if event.key == pygame.K_1:       
+
+                # ── ESC toggles pause — consumed here, not forwarded ──
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    if self.pause_menu.active:
+                        self.pause_menu.hide()
+                    else:
+                        self.pause_menu.show()
+                    continue  # skip the rest of this event's processing
+
+                # ── debug / cheat keys — disabled while paused ────────
+                if event.type == pygame.KEYDOWN and not self.pause_menu.active:
+                    if event.key == pygame.K_1:
                         self.current_stage.debug = not self.current_stage.debug
                         self.data.god_mode = not self.data.god_mode
-                    if event.key == pygame.K_n:  
+                    if event.key == pygame.K_n:
                         self.next_level()
                     if event.key == pygame.K_o:
                         self.toggle_fullscreen()
-                        
-                    
-                
-            self.current_stage.run(dt, events)
-            self.hud.update(dt)
-            self.hud.draw(self.display_surface, self.data)
-            y = 40
-            if self.data.attack_multiplier != 1.0:
-                debug(f'attack: x{self.data.attack_multiplier:.2f}', y=y); y += 20
-            if self.data.speed_multiplier != 1.0:
-                debug(f'speed: x{self.data.speed_multiplier:.2f}', y=y); y += 20
-            if self.data.defense_percent != 0:
-                debug(f'defense: {self.data.defense_percent}%', y=y); y += 20
-            if self.data.attack_speed_multiplier != 1.0:
-                debug(f'atk speed: x{self.data.attack_speed_multiplier:.2f}', y=y); y += 20
-            if self.data.lifesteal_percent != 0:
-                debug(f'lifesteal: {self.data.lifesteal_percent}hp/kill', y=y); y += 20
-            if self.data.max_health != 100:
-                debug(f'max hp: {self.data.max_health}', y=y); y += 20
-            if self.current_stage.player.dead:
-                death_frames = self.current_stage.player.frames['death']
-                if self.current_stage.player.frame_index >= len(death_frames) - 1:
-                    self.respawn()
-            
+
+                # ── route all events to the pause menu when it's open ─
+                if self.pause_menu.active:
+                    action = self.pause_menu.handle_event(event)
+                    if action == 'resume':
+                        self.pause_menu.hide()
+                    elif action == 'title':
+                        self.pause_menu.hide()
+                        self.return_to_title = True
+                    elif action == 'exit':
+                        pygame.quit()
+                        sys.exit()
+
+            # ── break conditions ──────────────────────────────────────
+            if self.return_to_title or self.game_complete:
+                break
+
+            # ── game update (frozen while paused) ────────────────────
+            if not self.pause_menu.active:
+                self.current_stage.run(dt, events)
+                self.hud.update(dt)
+                self.hud.draw(self.display_surface, self.data)
+
+                if self.current_stage.player.dead:
+                    death_frames = self.current_stage.player.frames['death']
+                    if self.current_stage.player.frame_index >= len(death_frames) - 1:
+                        self.respawn()
+                if self.current_stage.level_complete:
+                    self.next_level()
+
+            # ── pause menu overlay (always on top) ────────────────────
+            self.pause_menu.update(dt)
+            self.pause_menu.draw()
+
             pygame.display.update()
-          
-            
-    
+
+        # ── rewind to title screen (game complete or Return to Title) ─
+        self.game_complete   = False
+        self.return_to_title = False
+        self.data = Data()
+        middle = random.sample(self.MIDDLE_POOL, 3)
+        self.level_sequence = ['test'] + middle + ['Land of Miasma']
+        self.level_index = 0
+        self.load_level(0)
+        pygame.event.clear()
+        self.run()
+
+
 if __name__ == '__main__':          
     game = Game()
     game.run()
